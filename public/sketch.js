@@ -1,115 +1,134 @@
-/* 
-Workshop_02: Tilt Battle (now: Tilt Paint)
-By Andres Serna
-Feb 6 2026
-*/
-
 let agent;
 let askButton;
 
-// Device motion (kept, not essential for this version)
-let accX = 0, accY = 0, accZ = 0;
-let rrateX = 0, rrateY = 0, rrateZ = 0;
-
-// Device orientation
-let rotateDegrees = 0;
-let frontToBack = 0; // beta
-let leftToRight = 0; // gamma
-
-// --- Tilt control state ---
+// orientation
+let frontToBack = 0;
+let leftToRight = 0;
 let hasOrientation = false;
 
-// Calibration offsets (neutral phone angle)
+// calibration
 let beta0 = 0;
 let gamma0 = 0;
 let isCalibrated = false;
 
-// Input shaping
+// input shaping
 const DEADZONE_DEG = 3;
 const MAX_TILT_DEG = 30;
 const INPUT_GAIN = 0.12;
 
-// Painting logic
+// painting
 let startedPainting = false;
-let userColor;
+let userColor;          // [r,g,b,a]
+let brushWeight = 8;
+
+// persistence layer
+let paintLayer;
+
+// multiplayer
+let socket = null;
+let playersOnline = 1;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   angleMode(DEGREES);
 
-  // Random color per user/device/session
-  userColor = color(random(0, 255), random(0, 255), random(0, 255), 220);
+  // offscreen buffer that holds the “forever” painting
+  paintLayer = createGraphics(width, height);
+  paintLayer.background(255);
 
-  // Start with a blank canvas ONCE
-  background(255);
+  // per-user random color (stays for their session)
+  userColor = [
+    floor(random(40, 255)),
+    floor(random(40, 255)),
+    floor(random(40, 255)),
+    220
+  ];
+
+  connectSocket();
 
   if (
     typeof DeviceMotionEvent.requestPermission === "function" &&
     typeof DeviceOrientationEvent.requestPermission === "function"
   ) {
     askButton = createButton("Enable Motion");
-    askButton.position(width / 3, 16);
-    askButton.style("font-size", "32px");
-    askButton.style("padding", "37px 45px");
+    askButton.position(16, 16);
+    askButton.style("font-size", "18px");
+    askButton.style("padding", "10px 14px");
     askButton.mousePressed(handlePermissionButtonPressed);
   } else {
-    window.addEventListener("devicemotion", deviceMotionHandler, true);
     window.addEventListener("deviceorientation", deviceTurnedHandler, true);
   }
 }
 
 function draw() {
-  // IMPORTANT: no background() here, so trails persist.
+  // draw the persistent layer (no clearing)
+  image(paintLayer, 0, 0);
 
-  // If the agent exists and painting started, drive it with tilt
   if (agent && startedPainting && hasOrientation) {
     if (!isCalibrated) calibrateTilt();
-
-    const input = getTiltInputVector();
-    agent.applyInput(input);
-    agent.updateAndPaint(); // moves + draws the trail
+    agent.applyInput(getTiltInputVector());
+    agent.update(); // movement only (painting is sent via socket)
   }
+
+  // draw agent head on top
+  if (agent && startedPainting) agent.displayHead();
 
   drawHUD();
 }
 
-function handlePermissionButtonPressed() {
-  DeviceMotionEvent.requestPermission()
-    .then((response) => {
-      if (response === "granted") {
-        window.addEventListener("devicemotion", deviceMotionHandler, true);
-      }
-    })
-    .catch(console.error);
+function connectSocket() {
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  socket = new WebSocket(`${protocol}://${location.host}`);
 
+  socket.addEventListener("open", () => {
+    // connected
+  });
+
+  socket.addEventListener("message", (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+
+    if (msg.t === "init" && Array.isArray(msg.strokes)) {
+      // redraw entire history into paintLayer
+      paintLayer.background(255);
+      for (const s of msg.strokes) drawStrokeToLayer(s);
+    }
+
+    if (msg.t === "stroke" && msg.s) {
+      drawStrokeToLayer(msg.s);
+    }
+
+    if (msg.t === "clear") {
+      paintLayer.background(255);
+    }
+
+    if (msg.t === "players") {
+      playersOnline = msg.n || 1;
+    }
+  });
+}
+
+function drawStrokeToLayer(s) {
+  paintLayer.push();
+  paintLayer.stroke(s.c[0], s.c[1], s.c[2], s.c[3]);
+  paintLayer.strokeWeight(s.w);
+  paintLayer.strokeCap(ROUND);
+  paintLayer.line(s.x1, s.y1, s.x2, s.y2);
+  paintLayer.pop();
+}
+
+function handlePermissionButtonPressed() {
   DeviceOrientationEvent.requestPermission()
     .then((response) => {
       if (response === "granted") {
         window.addEventListener("deviceorientation", deviceTurnedHandler, true);
-        if (askButton) askButton.html("Motion ON");
+        if (askButton) askButton.html("Motion Enabled");
       }
     })
     .catch(console.error);
 }
 
-// Device motion
-function deviceMotionHandler(event) {
-  if (event.acceleration) {
-    accX = event.acceleration.x ?? 0;
-    accY = event.acceleration.y ?? 0;
-    accZ = event.acceleration.z ?? 0;
-  }
-
-  if (event.rotationRate) {
-    rrateZ = event.rotationRate.alpha ?? 0;
-    rrateX = event.rotationRate.beta ?? 0;
-    rrateY = event.rotationRate.gamma ?? 0;
-  }
-}
-
-// Device orientation
 function deviceTurnedHandler(event) {
-  rotateDegrees = event.alpha ?? 0;
   frontToBack = event.beta ?? 0;
   leftToRight = event.gamma ?? 0;
   hasOrientation = true;
@@ -121,7 +140,6 @@ function calibrateTilt() {
   isCalibrated = true;
 }
 
-// Convert tilt angles to a small acceleration vector
 function getTiltInputVector() {
   let tiltY = frontToBack - beta0;
   let tiltX = leftToRight - gamma0;
@@ -142,28 +160,21 @@ function applyDeadzone(v, dz) {
   return Math.abs(v) < dz ? 0 : v;
 }
 
-// Touch to spawn/start painting
+// Start painting: agent appears in the CENTER (your request)
 function touchStarted() {
-  // Create agent on first touch
   if (!agent) {
-    agent = new Agent(touchX, touchY, userColor);
+    agent = new Agent(width / 2, height / 2);
     startedPainting = true;
-
-    // Calibrate when user "starts" so neutral feels natural
     if (hasOrientation) calibrateTilt();
   } else {
-    // If already painting, a tap re-calibrates
     if (hasOrientation) calibrateTilt();
   }
-
-  // Prevent page scroll on mobile
   return false;
 }
 
-// Optional: if you click with mouse on desktop
 function mousePressed() {
   if (!agent) {
-    agent = new Agent(mouseX, mouseY, userColor);
+    agent = new Agent(width / 2, height / 2);
     startedPainting = true;
     if (hasOrientation) calibrateTilt();
   } else {
@@ -171,26 +182,34 @@ function mousePressed() {
   }
 }
 
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+
+  // NOTE: resizing a persistent canvas is tricky because it wipes buffers.
+  // Keep it simple: recreate layer and request full init again.
+  paintLayer = createGraphics(width, height);
+  paintLayer.background(255);
+  if (socket && socket.readyState === 1) {
+    // force re-init by reconnecting
+    socket.close();
+  }
+  connectSocket();
+}
+
 function drawHUD() {
-  // Small overlay without clearing canvas: draw over it each frame
   push();
   noStroke();
   fill(0, 140);
-  rect(12, 12, 340, 88, 10);
+  rect(12, 12, 360, 108, 10);
 
   fill(255);
   textSize(14);
   textAlign(LEFT, TOP);
 
-  const status = hasOrientation ? "OK" : "Waiting...";
-  const cal = isCalibrated ? "Yes" : "No";
-  const state = agent ? "Painting" : "Tap to start";
+  const state = agent ? "Painting" : "Tap to start (spawns center)";
   text(`State: ${state}`, 22, 20);
-  text(`Orientation: ${status}   Calibrated: ${cal}`, 22, 40);
+  text(`Players online: ${playersOnline}`, 22, 40);
   text(`beta: ${frontToBack.toFixed(1)}  gamma: ${leftToRight.toFixed(1)}`, 22, 60);
+  text(`Color: rgba(${userColor.join(",")})`, 22, 80);
   pop();
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
 }
