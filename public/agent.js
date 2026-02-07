@@ -25,7 +25,7 @@ class Agent {
         this.position.x = constrain(this.position.x, 0, width);
         this.position.y = constrain(this.position.y, 0, height);
 
-        // Send stroke only if moved
+        // Only send a stroke if it actually moved
         if (this.prevPosition.x !== this.position.x || this.prevPosition.y !== this.position.y) {
             sendStrokeSegment(this.prevPosition, this.position);
         }
@@ -40,6 +40,7 @@ class Agent {
     }
 }
 
+// helper used by Agent (lives in global scope)
 function sendStrokeSegment(p1, p2) {
     if (!socket || socket.readyState !== 1) return;
 

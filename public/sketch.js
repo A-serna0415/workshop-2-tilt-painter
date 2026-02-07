@@ -2,8 +2,8 @@ let agent;
 let askButton;
 
 // orientation
-let frontToBack = 0; // beta
-let leftToRight = 0; // gamma
+let frontToBack = 0;
+let leftToRight = 0;
 let hasOrientation = false;
 
 // calibration
@@ -18,10 +18,10 @@ const INPUT_GAIN = 0.12;
 
 // painting
 let startedPainting = false;
-let userColor;        // [r,g,b,a]
+let userColor;          // [r,g,b,a]
 let brushWeight = 8;
 
-// persistent paint buffer (local display)
+// persistence layer
 let paintLayer;
 
 // multiplayer
@@ -32,10 +32,11 @@ function setup() {
   createCanvas(windowWidth, windowHeight);
   angleMode(DEGREES);
 
+  // offscreen buffer that holds the “forever” painting
   paintLayer = createGraphics(width, height);
   paintLayer.background(255);
 
-  // Random per user/session
+  // per-user random color (stays for their session)
   userColor = [
     floor(random(40, 255)),
     floor(random(40, 255)),
@@ -46,12 +47,13 @@ function setup() {
   connectSocket();
 
   if (
+    typeof DeviceMotionEvent.requestPermission === "function" &&
     typeof DeviceOrientationEvent.requestPermission === "function"
   ) {
     askButton = createButton("Enable Motion");
-    askButton.position(width / 3, 35);
-    askButton.style("font-size", "18px");
-    askButton.style("padding", "10px 14px");
+    askButton.position(width / 3, 16);
+    askButton.style("font-size", "45px");
+    askButton.style("padding", "32px 48px");
     askButton.mousePressed(handlePermissionButtonPressed);
   } else {
     window.addEventListener("deviceorientation", deviceTurnedHandler, true);
@@ -59,16 +61,17 @@ function setup() {
 }
 
 function draw() {
-  // draw the persistent painting
+  // draw the persistent layer (no clearing)
   image(paintLayer, 0, 0);
 
-  // update movement + send strokes
   if (agent && startedPainting && hasOrientation) {
     if (!isCalibrated) calibrateTilt();
     agent.applyInput(getTiltInputVector());
-    agent.update(); // sends stroke segments via socket
-    agent.displayHead();
+    agent.update(); // movement only (painting is sent via socket)
   }
+
+  // draw agent head on top
+  if (agent && startedPainting) agent.displayHead();
 
   drawHUD();
 }
@@ -77,12 +80,16 @@ function connectSocket() {
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   socket = new WebSocket(`${protocol}://${location.host}`);
 
+  socket.addEventListener("open", () => {
+    // connected
+  });
+
   socket.addEventListener("message", (ev) => {
     let msg;
     try { msg = JSON.parse(ev.data); } catch { return; }
 
     if (msg.t === "init" && Array.isArray(msg.strokes)) {
-      // rebuild painting after refresh
+      // redraw entire history into paintLayer
       paintLayer.background(255);
       for (const s of msg.strokes) drawStrokeToLayer(s);
     }
@@ -153,17 +160,19 @@ function applyDeadzone(v, dz) {
   return Math.abs(v) < dz ? 0 : v;
 }
 
-// Tap to begin: agent appears in CENTER (your request)
+// Start painting: agent appears in the CENTER (your request)
 function touchStarted() {
-  startPainting();
+  if (!agent) {
+    agent = new Agent(width / 2, height / 2);
+    startedPainting = true;
+    if (hasOrientation) calibrateTilt();
+  } else {
+    if (hasOrientation) calibrateTilt();
+  }
   return false;
 }
 
 function mousePressed() {
-  startPainting();
-}
-
-function startPainting() {
   if (!agent) {
     agent = new Agent(width / 2, height / 2);
     startedPainting = true;
@@ -176,12 +185,14 @@ function startPainting() {
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 
-  // resizing wipes buffers, so rebuild from server history
+  // NOTE: resizing a persistent canvas is tricky because it wipes buffers.
+  // Keep it simple: recreate layer and request full init again.
   paintLayer = createGraphics(width, height);
   paintLayer.background(255);
-
-  // reconnect to trigger init resend
-  if (socket && socket.readyState === 1) socket.close();
+  if (socket && socket.readyState === 1) {
+    // force re-init by reconnecting
+    socket.close();
+  }
   connectSocket();
 }
 
