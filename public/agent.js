@@ -1,59 +1,58 @@
-// Agent class
+// Agent class (as a brush)
 
 class Agent {
-    constructor(x, y) {
+    constructor(x, y, brushColor) {
         this.position = createVector(x, y);
+        this.prevPosition = this.position.copy();
 
-        // Start still (tilt will drive it)
         this.velocity = createVector(0, 0);
-
         this.maxSpeed = 3.5;
-        this.baseSize = 45;
 
-        // Movement feel
-        this.friction = 0.92;  // closer to 1 = more slippery
+        this.friction = 0.92;
+
+        this.baseSize = 18; // smaller feels more like a brush head
+        this.brushColor = brushColor;
+
+        this.brushWeight = 8;
     }
 
     applyInput(inputVec) {
-        // inputVec is a small acceleration-like vector
         this.velocity.add(inputVec);
 
-        // cap speed
         if (this.velocity.mag() > this.maxSpeed) {
             this.velocity.setMag(this.maxSpeed);
         }
     }
 
-    update() {
-        // apply friction so it slows when you stop tilting
+    updateAndPaint() {
         this.velocity.mult(this.friction);
-
-        // tiny cutoff so it can fully stop
         if (this.velocity.mag() < 0.02) this.velocity.set(0, 0);
 
-        // move
+        this.prevPosition.set(this.position);
         this.position.add(this.velocity);
 
-        this.display();
+        // keep inside canvas (painting feels better than bouncing)
+        this.position.x = constrain(this.position.x, 0, width);
+        this.position.y = constrain(this.position.y, 0, height);
+
+        this.paint();
+        this.displayHead();
     }
 
-    display() {
+    paint() {
         push();
-        translate(this.position.x, this.position.y);
-        fill(0);
-        stroke(255);
-        strokeWeight(3);
-        ellipse(0, 0, this.baseSize, this.baseSize);
+        stroke(this.brushColor);
+        strokeWeight(this.brushWeight);
+        strokeCap(ROUND);
+        line(this.prevPosition.x, this.prevPosition.y, this.position.x, this.position.y);
         pop();
     }
 
-    edgeAvoid() {
-        // Same as your baseline bounce behavior
-        if (this.position.x < 20 || this.position.x > width - 20) {
-            this.velocity.x *= -1;
-        }
-        if (this.position.y < 20 || this.position.y > height - 20) {
-            this.velocity.y *= -1;
-        }
+    displayHead() {
+        push();
+        noStroke();
+        fill(0, 40);
+        circle(this.position.x, this.position.y, this.baseSize);
+        pop();
     }
 }
