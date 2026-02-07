@@ -49,7 +49,7 @@ function setup() {
     typeof DeviceOrientationEvent.requestPermission === "function"
   ) {
     askButton = createButton("Enable Motion");
-    askButton.position(16, 16);
+    askButton.position(width / 3, 35);
     askButton.style("font-size", "18px");
     askButton.style("padding", "10px 14px");
     askButton.mousePressed(handlePermissionButtonPressed);
