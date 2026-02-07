@@ -4,8 +4,8 @@ By Andres Serna
 Feb 6 2026
 */
 
-let agent;
-let askButton;
+let agent; // stores Agent class
+let askButton; // Motion permission button
 
 // Device motion (kept for later if you want it)
 let accX = 0, accY = 0, accZ = 0;
@@ -16,10 +16,11 @@ let rotateDegrees = 0;
 let frontToBack = 0;  // beta
 let leftToRight = 0;  // gamma
 
-// --- Tilt control settings ---
+// Tilt control settings
 let hasOrientation = false;
 
 // Calibration offsets (neutral phone angle)
+// This is to let the users interact with the app while they are holding the phone in a natural way.
 let beta0 = 0;
 let gamma0 = 0;
 let isCalibrated = false;
@@ -42,8 +43,8 @@ function setup() {
     // iOS 13+
     askButton = createButton("Enable Motion");
     askButton.position(16, 16);
-    askButton.style("font-size", "18px");
-    askButton.style("padding", "10px 14px");
+    askButton.style("font-size", "22px");
+    askButton.style("padding", "20px 28px");
     askButton.mousePressed(handlePermissionButtonPressed);
   } else {
     window.addEventListener("devicemotion", deviceMotionHandler, true);
@@ -88,7 +89,7 @@ function handlePermissionButtonPressed() {
       if (response === "granted") {
         window.addEventListener("deviceorientation", deviceTurnedHandler, true);
         // Once permission is granted, we’ll calibrate as soon as we receive data.
-        if (askButton) askButton.html("Motion Enabled");
+        if (askButton) askButton.html("Motion ON");
       }
     })
     .catch(console.error);
