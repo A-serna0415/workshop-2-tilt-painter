@@ -145,7 +145,7 @@ function getTiltInputVector() {
   // Map to 2D: phone tilt right moves agent right.
   // For y: tilting phone "forward" (positive beta) usually should move agent down or up depending on preference.
   // Here: tilt forward moves agent DOWN (increase y). Flip ny sign if you want the opposite.
-  return createVector(nx, -ny).mult(INPUT_GAIN);
+  return createVector(nx, ny).mult(INPUT_GAIN);
 }
 
 function applyDeadzone(v, dz) {
