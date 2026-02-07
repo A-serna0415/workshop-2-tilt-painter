@@ -42,9 +42,9 @@ function setup() {
   ) {
     // iOS 13+
     askButton = createButton("Enable Motion");
-    askButton.position(16, 16);
-    askButton.style("font-size", "22px");
-    askButton.style("padding", "20px 28px");
+    askButton.position(width / 2, 16);
+    askButton.style("font-size", "44px");
+    askButton.style("padding", "40px 56px");
     askButton.mousePressed(handlePermissionButtonPressed);
   } else {
     window.addEventListener("devicemotion", deviceMotionHandler, true);
