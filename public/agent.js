@@ -10,10 +10,10 @@ class Agent {
 
         this.friction = 0.92;
 
-        this.baseSize = 18; // smaller feels more like a brush head
+        this.baseSize = 22; // smaller feels more like a brush head
         this.brushColor = brushColor;
 
-        this.brushWeight = 8;
+        this.brushWeight = 0;
     }
 
     applyInput(inputVec) {

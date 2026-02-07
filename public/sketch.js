@@ -38,7 +38,7 @@ function setup() {
   angleMode(DEGREES);
 
   // Random color per user/device/session
-  userColor = color(random(40, 255), random(40, 255), random(40, 255), 220);
+  userColor = color(random(0, 255), random(0, 255), random(0, 255), 220);
 
   // Start with a blank canvas ONCE
   background(255);
@@ -48,9 +48,9 @@ function setup() {
     typeof DeviceOrientationEvent.requestPermission === "function"
   ) {
     askButton = createButton("Enable Motion");
-    askButton.position(16, 16);
-    askButton.style("font-size", "18px");
-    askButton.style("padding", "10px 14px");
+    askButton.position(width / 3, 16);
+    askButton.style("font-size", "32px");
+    askButton.style("padding", "37px 45px");
     askButton.mousePressed(handlePermissionButtonPressed);
   } else {
     window.addEventListener("devicemotion", deviceMotionHandler, true);
@@ -86,7 +86,7 @@ function handlePermissionButtonPressed() {
     .then((response) => {
       if (response === "granted") {
         window.addEventListener("deviceorientation", deviceTurnedHandler, true);
-        if (askButton) askButton.html("Motion Enabled");
+        if (askButton) askButton.html("Motion ON");
       }
     })
     .catch(console.error);
