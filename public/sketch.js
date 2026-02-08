@@ -38,7 +38,7 @@ function setup() {
   angleMode(DEGREES);
 
   // Random color per user/device/session
-  userColor = color(random(20, 255), random(20, 255), random(20, 255), 220);
+  userColor = color(random(0, 255), random(0, 255), random(0, 255), 255);
 
   // Start with a blank canvas ONCE
   background(255);

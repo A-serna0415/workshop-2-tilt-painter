@@ -51,7 +51,7 @@ class Agent {
     displayHead() {
         push();
         noStroke();
-        fill(userColor, userColor, userColor);
+        fill(userColor, userColor, userColor, userColor);
         circle(this.position.x, this.position.y, this.baseSize);
         pop();
     }
