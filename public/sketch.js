@@ -41,7 +41,7 @@ function setup() {
   angleMode(DEGREES);
 
   paintLayer = createGraphics(width, height);
-  paintLayer.background(255);
+  paintLayer.background(0, 75);
 
   userRGBA = [
     floor(random(0, 255)),
@@ -133,7 +133,7 @@ function connectSocket() {
     }
 
     if (msg.t === "clear") {
-      paintLayer.background(255);
+      paintLayer.background(0, 75);
     }
 
     if (msg.t === "players") {
@@ -143,7 +143,7 @@ function connectSocket() {
 
   socket.addEventListener("close", () => {
     // Basic auto-reconnect (keeps it robust on Render/mobile)
-    setTimeout(connectSocket, 800);
+    setTimeout(connectSocket, 1000);
   });
 }
 
@@ -272,7 +272,7 @@ function windowResized() {
 
   // Resizing wipes buffers, rebuild from server history
   paintLayer = createGraphics(width, height);
-  paintLayer.background(255);
+  paintLayer.background(0, 75);
 
   // Keep brush centered on resize (optional nice behavior)
   if (brush) {

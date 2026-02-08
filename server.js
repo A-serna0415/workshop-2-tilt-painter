@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
 
-// IMPORTANT: Render provides PORT
+// Render provides PORT
 const PORT = process.env.PORT || 3000;
 
 // Create HTTP server so WebSocket can share the same port
