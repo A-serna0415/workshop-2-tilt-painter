@@ -15,6 +15,7 @@ class Brush {
         if (this.velocity.mag() > this.maxSpeed) this.velocity.setMag(this.maxSpeed);
     }
 
+    // Updates movement and returns a stroke segment when it moved
     update() {
         this.velocity.mult(this.friction);
         if (this.velocity.mag() < 0.02) this.velocity.set(0, 0);
@@ -25,31 +26,25 @@ class Brush {
         this.position.x = constrain(this.position.x, 0, width);
         this.position.y = constrain(this.position.y, 0, height);
 
-        // Send stroke only if moved
-        if (this.prevPosition.x !== this.position.x || this.prevPosition.y !== this.position.y) {
-            sendStrokeSegment(this.prevPosition, this.position);
-        }
+        const moved =
+            this.prevPosition.x !== this.position.x ||
+            this.prevPosition.y !== this.position.y;
+
+        if (!moved) return null;
+
+        return {
+            x1: this.prevPosition.x,
+            y1: this.prevPosition.y,
+            x2: this.position.x,
+            y2: this.position.y
+        };
     }
 
     displayHead() {
         push();
         noStroke();
-        const headCol = color(userRGBA[0], userRGBA[1], userRGBA[2], 85);
-        fill(headCol);
+        fill(userRGBA[0], userRGBA[1], userRGBA[2], 85);
         circle(this.position.x, this.position.y, this.headSize);
         pop();
     }
-}
-
-function sendStrokeSegment(p1, p2) {
-    if (!socket || socket.readyState !== 1) return;
-
-    const seg = {
-        x1: p1.x, y1: p1.y,
-        x2: p2.x, y2: p2.y,
-        c: userRGBA,
-        w: brushWeight
-    };
-
-    socket.send(JSON.stringify({ t: "stroke", s: seg }));
 }

@@ -1,12 +1,7 @@
-/* 
-Workshop_02: Tilt Painter (Multiplayer)
-By Andres Serna
-*/
-
 let brush;
 let askButton;
 
-// Device motion (keep defined so handler won't crash if used)
+// Device motion vars (defined so handler won’t crash)
 let accX = 0, accY = 0, accZ = 0;
 let rrateX = 0, rrateY = 0, rrateZ = 0;
 
@@ -28,8 +23,7 @@ const MAX_TILT_DEG = 30;
 const INPUT_GAIN = 0.12;
 
 // Painting
-let startedPainting = false;
-let userRGBA;     // [r,g,b,a]
+let userRGBA;          // [r,g,b,a]
 let brushWeight = 8;
 
 // Persistent paint buffer
@@ -39,15 +33,16 @@ let paintLayer;
 let socket = null;
 let playersOnline = 1;
 
+// Identify this client so we can ignore our own echoed strokes
+let clientId = Math.random().toString(16).slice(2);
+
 function setup() {
   createCanvas(windowWidth, windowHeight);
   angleMode(DEGREES);
 
-  // offscreen paint layer so strokes persist without background()
   paintLayer = createGraphics(width, height);
   paintLayer.background(255);
 
-  // random per user/session color
   userRGBA = [
     floor(random(0, 255)),
     floor(random(0, 255)),
@@ -58,8 +53,8 @@ function setup() {
   connectSocket();
 
   if (
-    typeof DeviceMotionEvent.requestPermission === "function" &&
-    typeof DeviceOrientationEvent.requestPermission === "function"
+    typeof DeviceMotionEvent?.requestPermission === "function" &&
+    typeof DeviceOrientationEvent?.requestPermission === "function"
   ) {
     askButton = createButton("Enable Motion");
     askButton.position(width / 3, 16);
@@ -72,26 +67,42 @@ function setup() {
       return false;
     });
   } else {
+    // Non-iOS permission flow
     window.addEventListener("devicemotion", deviceMotionHandler, true);
     window.addEventListener("deviceorientation", deviceTurnedHandler, true);
+
+    // Spawn immediately for non-iOS too
+    spawnBrush();
   }
 }
 
 function draw() {
-  // draw the persistent paint layer
   image(paintLayer, 0, 0);
 
-  // Move brush and send strokes (painting itself happens when server echoes back)
-  if (brush && startedPainting) {
+  if (brush) {
     if (hasOrientation) {
       if (!isCalibrated) calibrateTilt();
 
-      const input = getTiltInputVector();
-      brush.applyInput(input);
-      brush.update(); // update position; will call sendStrokeSegment internally
+      brush.applyInput(getTiltInputVector());
+      const seg = brush.update();
+
+      if (seg) {
+        // 1) Draw locally immediately (fixes lag + “trace stops” feel)
+        const fullSeg = {
+          ...seg,
+          c: userRGBA,
+          w: brushWeight,
+          id: clientId
+        };
+        drawStrokeToLayer(fullSeg);
+
+        // 2) Send to server for everyone else (RAM history + broadcast)
+        sendStroke(fullSeg);
+      }
     }
 
-    brush.displayHead(); // show brush even if orientation not active yet
+    // Always show head
+    brush.displayHead();
   }
 
   drawHUD();
@@ -106,12 +117,19 @@ function connectSocket() {
     try { msg = JSON.parse(ev.data); } catch { return; }
 
     if (msg.t === "init" && Array.isArray(msg.strokes)) {
+      // Rebuild history (refresh-safe while server is awake)
       paintLayer.background(255);
-      for (const s of msg.strokes) drawStrokeToLayer(s);
+      for (const s of msg.strokes) {
+        // Skip strokes we already drew locally this session
+        if (s.id && s.id === clientId) continue;
+        drawStrokeToLayer(s);
+      }
     }
 
     if (msg.t === "stroke" && msg.s) {
-      drawStrokeToLayer(msg.s);
+      const s = msg.s;
+      if (s.id && s.id === clientId) return; // ignore our echo
+      drawStrokeToLayer(s);
     }
 
     if (msg.t === "clear") {
@@ -122,6 +140,16 @@ function connectSocket() {
       playersOnline = msg.n || 1;
     }
   });
+
+  socket.addEventListener("close", () => {
+    // Basic auto-reconnect (keeps it robust on Render/mobile)
+    setTimeout(connectSocket, 800);
+  });
+}
+
+function sendStroke(seg) {
+  if (!socket || socket.readyState !== 1) return;
+  socket.send(JSON.stringify({ t: "stroke", s: seg }));
 }
 
 function drawStrokeToLayer(s) {
@@ -157,6 +185,11 @@ function handlePermissionButtonPressed() {
       if (orientRes === "granted") {
         window.addEventListener("deviceorientation", deviceTurnedHandler, true);
       }
+
+      // Spawn brush as soon as permission is granted (your request)
+      if (orientRes === "granted") {
+        spawnBrush();
+      }
     })
     .catch((err) => {
       askButton.html("Permission failed");
@@ -165,7 +198,12 @@ function handlePermissionButtonPressed() {
     });
 }
 
-// Device motion (not required for tilt painting, but safe)
+function spawnBrush() {
+  if (brush) return;
+  brush = new Brush(width / 2, height / 2);
+  isCalibrated = false; // will auto-calibrate on first orientation read
+}
+
 function deviceMotionHandler(event) {
   if (event.acceleration) {
     accX = event.acceleration.x ?? 0;
@@ -212,37 +250,6 @@ function applyDeadzone(v, dz) {
   return Math.abs(v) < dz ? 0 : v;
 }
 
-// Tap to start: spawn brush in CENTER (as requested)
-function touchStarted() {
-  startPainting();
-  return false;
-}
-
-function mousePressed() {
-  startPainting();
-}
-
-function startPainting() {
-  if (!brush) {
-    brush = new Brush(width / 2, height / 2);
-    startedPainting = true;
-    if (hasOrientation) calibrateTilt();
-  } else {
-    if (hasOrientation) calibrateTilt();
-  }
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-
-  // Resizing wipes buffers; rebuild from server history
-  paintLayer = createGraphics(width, height);
-  paintLayer.background(255);
-
-  if (socket && socket.readyState === 1) socket.close();
-  connectSocket();
-}
-
 function drawHUD() {
   push();
   noStroke();
@@ -252,10 +259,26 @@ function drawHUD() {
 
   const status = hasOrientation ? "OK" : "Waiting...";
   const cal = isCalibrated ? "Yes" : "No";
-  const state = brush ? "Painting" : "Tap to start";
+  const state = brush ? "Painting" : "Waiting permission";
 
   text(`State: ${state}`, 22, 20);
   text(`Players: ${playersOnline}`, 22, 44);
   text(`Orientation: ${status}  Calib: ${cal}`, 22, 68);
   pop();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+
+  // Resizing wipes buffers, rebuild from server history
+  paintLayer = createGraphics(width, height);
+  paintLayer.background(255);
+
+  // Keep brush centered on resize (optional nice behavior)
+  if (brush) {
+    brush.position.set(width / 2, height / 2);
+    brush.prevPosition.set(brush.position);
+  }
+
+  if (socket && socket.readyState === 1) socket.close();
 }
