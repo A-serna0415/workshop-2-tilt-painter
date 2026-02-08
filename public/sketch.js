@@ -1,5 +1,5 @@
 /* 
-Workshop_02: Tilt Battle (now: Tilt Paint)
+Workshop_02: Tilt Painter
 By Andres Serna
 Feb 6 2026
 */
@@ -7,9 +7,9 @@ Feb 6 2026
 let agent;
 let askButton;
 
-// Device motion (kept, not essential for this version)
-let accX = 0, accY = 0, accZ = 0;
-let rrateX = 0, rrateY = 0, rrateZ = 0;
+// // Device motion (kept, not essential for this version)
+// let accX = 0, accY = 0, accZ = 0;
+// let rrateX = 0, rrateY = 0, rrateZ = 0;
 
 // Device orientation
 let rotateDegrees = 0;
@@ -38,7 +38,7 @@ function setup() {
   angleMode(DEGREES);
 
   // Random color per user/device/session
-  userColor = color(random(0, 255), random(0, 255), random(0, 255), 220);
+  userColor = color(random(20, 255), random(20, 255), random(20, 255), 220);
 
   // Start with a blank canvas ONCE
   background(255);
@@ -175,8 +175,8 @@ function drawHUD() {
   // Small overlay without clearing canvas: draw over it each frame
   push();
   noStroke();
-  fill(0, 140);
-  rect(12, 12, 340, 88, 10);
+  // fill(0, 140);
+  // rect(12, 12, 340, 88, 10);
 
   fill(255);
   textSize(14);
