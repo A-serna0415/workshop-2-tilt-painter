@@ -50,6 +50,12 @@ function setup() {
     askButton.style("font-size", "32px");
     askButton.style("padding", "37px 45px");
     askButton.mousePressed(handlePermissionButtonPressed);
+
+    // iOS sometimes ignores mousePressed for DOM buttons. Force touch binding too:
+    askButton.touchStarted(() => {
+      handlePermissionButtonPressed();
+      return false;
+    });
   } else {
     window.addEventListener("devicemotion", deviceMotionHandler, true);
     window.addEventListener("deviceorientation", deviceTurnedHandler, true);
@@ -71,22 +77,38 @@ function draw() {
 }
 
 function handlePermissionButtonPressed() {
-  DeviceMotionEvent.requestPermission()
-    .then((response) => {
-      if (response === "granted") {
+  if (!askButton) return;
+
+  // Prove the handler is firing
+  askButton.html("Requesting...");
+
+  const motionPromise =
+    typeof DeviceMotionEvent?.requestPermission === "function"
+      ? DeviceMotionEvent.requestPermission()
+      : Promise.resolve("not-needed");
+
+  const orientPromise =
+    typeof DeviceOrientationEvent?.requestPermission === "function"
+      ? DeviceOrientationEvent.requestPermission()
+      : Promise.resolve("not-needed");
+
+  Promise.all([motionPromise, orientPromise])
+    .then(([motionRes, orientRes]) => {
+      // Show the results on the button so you can’t miss it
+      askButton.html(`M:${motionRes} O:${orientRes}`);
+
+      if (motionRes === "granted") {
         window.addEventListener("devicemotion", deviceMotionHandler, true);
       }
-    })
-    .catch(console.error);
-
-  DeviceOrientationEvent.requestPermission()
-    .then((response) => {
-      if (response === "granted") {
+      if (orientRes === "granted") {
         window.addEventListener("deviceorientation", deviceTurnedHandler, true);
-        if (askButton) askButton.html("Motion ON");
       }
     })
-    .catch(console.error);
+    .catch((err) => {
+      askButton.html("Permission failed");
+      console.error(err);
+      alert("Permission error: " + (err?.message || err));
+    });
 }
 
 function deviceMotionHandler(event) {
