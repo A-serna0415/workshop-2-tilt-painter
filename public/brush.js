@@ -1,27 +1,24 @@
-// Agent class (as a brush)
+// Brush class
 
-class Agent {
+class Brush {
     constructor(x, y, brushColor) {
         this.position = createVector(x, y);
         this.prevPosition = this.position.copy();
 
         this.velocity = createVector(0, 0);
         this.maxSpeed = 3.5;
-
         this.friction = 0.92;
 
-        this.baseSize = 28; // smaller feels more like a brush head
+        this.baseSize = 28;
         this.brushColor = brushColor;
 
-        this.brushWeight = 0;
+        // IMPORTANT: 0 means "no paint"
+        this.brushWeight = 8;
     }
 
     applyInput(inputVec) {
         this.velocity.add(inputVec);
-
-        if (this.velocity.mag() > this.maxSpeed) {
-            this.velocity.setMag(this.maxSpeed);
-        }
+        if (this.velocity.mag() > this.maxSpeed) this.velocity.setMag(this.maxSpeed);
     }
 
     updateAndPaint() {
@@ -31,7 +28,7 @@ class Agent {
         this.prevPosition.set(this.position);
         this.position.add(this.velocity);
 
-        // keep inside canvas (painting feels better than bouncing)
+        // keep inside canvas
         this.position.x = constrain(this.position.x, 0, width);
         this.position.y = constrain(this.position.y, 0, height);
 
@@ -51,7 +48,12 @@ class Agent {
     displayHead() {
         push();
         noStroke();
-        fill(userColor, userColor, userColor, userColor);
+
+        // draw a translucent head using the brush color
+        const headCol = color(this.brushColor);
+        headCol.setAlpha(85);
+        fill(headCol);
+
         circle(this.position.x, this.position.y, this.baseSize);
         pop();
     }

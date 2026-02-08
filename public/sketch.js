@@ -4,22 +4,21 @@ By Andres Serna
 Feb 6 2026
 */
 
-let agent;
+let brush;
 let askButton;
 
-// // Device motion (kept, not essential for this version)
-// let accX = 0, accY = 0, accZ = 0;
-// let rrateX = 0, rrateY = 0, rrateZ = 0;
+// Device motion
+let accX = 0, accY = 0, accZ = 0;
+let rrateX = 0, rrateY = 0, rrateZ = 0;
 
 // Device orientation
 let rotateDegrees = 0;
 let frontToBack = 0; // beta
 let leftToRight = 0; // gamma
 
-// --- Tilt control state ---
 let hasOrientation = false;
 
-// Calibration offsets (neutral phone angle)
+// Calibration offsets
 let beta0 = 0;
 let gamma0 = 0;
 let isCalibrated = false;
@@ -37,10 +36,9 @@ function setup() {
   createCanvas(windowWidth, windowHeight);
   angleMode(DEGREES);
 
-  // Random color per user/device/session
   userColor = color(random(0, 255), random(0, 255), random(0, 255), 255);
 
-  // Start with a blank canvas ONCE
+  // Blank canvas once
   background(255);
 
   if (
@@ -59,15 +57,14 @@ function setup() {
 }
 
 function draw() {
-  // IMPORTANT: no background() here, so trails persist.
+  // no background() so drawing persists
 
-  // If the agent exists and painting started, drive it with tilt
-  if (agent && startedPainting && hasOrientation) {
+  if (brush && startedPainting && hasOrientation) {
     if (!isCalibrated) calibrateTilt();
 
     const input = getTiltInputVector();
-    agent.applyInput(input);
-    agent.updateAndPaint(); // moves + draws the trail
+    brush.applyInput(input);
+    brush.updateAndPaint();
   }
 
   drawHUD();
@@ -92,7 +89,6 @@ function handlePermissionButtonPressed() {
     .catch(console.error);
 }
 
-// Device motion
 function deviceMotionHandler(event) {
   if (event.acceleration) {
     accX = event.acceleration.x ?? 0;
@@ -107,7 +103,6 @@ function deviceMotionHandler(event) {
   }
 }
 
-// Device orientation
 function deviceTurnedHandler(event) {
   rotateDegrees = event.alpha ?? 0;
   frontToBack = event.beta ?? 0;
@@ -121,7 +116,6 @@ function calibrateTilt() {
   isCalibrated = true;
 }
 
-// Convert tilt angles to a small acceleration vector
 function getTiltInputVector() {
   let tiltY = frontToBack - beta0;
   let tiltX = leftToRight - gamma0;
@@ -142,29 +136,24 @@ function applyDeadzone(v, dz) {
   return Math.abs(v) < dz ? 0 : v;
 }
 
-// Touch to spawn/start painting
 function touchStarted() {
-  // Create agent on first touch
-  if (!agent) {
-    agent = new Agent(touchX, touchY, userColor);
+  if (!brush) {
+    // spawn in center (your request)
+    brush = new Brush(width / 2, height / 2, userColor);
     startedPainting = true;
 
-    // Calibrate when user "starts" so neutral feels natural
     if (hasOrientation) calibrateTilt();
   } else {
-    // If already painting, a tap re-calibrates
     if (hasOrientation) calibrateTilt();
   }
-
-  // Prevent page scroll on mobile
   return false;
 }
 
-// Optional: if you click with mouse on desktop
 function mousePressed() {
-  if (!agent) {
-    agent = new Agent(mouseX, mouseY, userColor);
+  if (!brush) {
+    brush = new Brush(width / 2, height / 2, userColor);
     startedPainting = true;
+
     if (hasOrientation) calibrateTilt();
   } else {
     if (hasOrientation) calibrateTilt();
@@ -172,19 +161,15 @@ function mousePressed() {
 }
 
 function drawHUD() {
-  // Small overlay without clearing canvas: draw over it each frame
   push();
   noStroke();
-  // fill(0, 140);
-  // rect(12, 12, 340, 88, 10);
-
   fill(0);
   textSize(24);
   textAlign(LEFT, TOP);
 
   const status = hasOrientation ? "OK" : "Waiting...";
   const cal = isCalibrated ? "Yes" : "No";
-  const state = agent ? "Painting" : "Tap to start";
+  const state = brush ? "Painting" : "Tap to start";
   text(`State: ${state}`, 22, 20);
   text(`Orientation: ${status}   Calibrated: ${cal}`, 22, 40);
   text(`beta: ${frontToBack.toFixed(1)}  gamma: ${leftToRight.toFixed(1)}`, 22, 60);
