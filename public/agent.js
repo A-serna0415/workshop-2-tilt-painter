@@ -10,7 +10,7 @@ class Agent {
 
         this.friction = 0.92;
 
-        this.baseSize = 22; // smaller feels more like a brush head
+        this.baseSize = 28; // smaller feels more like a brush head
         this.brushColor = brushColor;
 
         this.brushWeight = 0;
@@ -51,7 +51,7 @@ class Agent {
     displayHead() {
         push();
         noStroke();
-        fill(0, 40);
+        fill(userColor, userColor, userColor);
         circle(this.position.x, this.position.y, this.baseSize);
         pop();
     }

@@ -178,8 +178,8 @@ function drawHUD() {
   // fill(0, 140);
   // rect(12, 12, 340, 88, 10);
 
-  fill(255);
-  textSize(14);
+  fill(0);
+  textSize(24);
   textAlign(LEFT, TOP);
 
   const status = hasOrientation ? "OK" : "Waiting...";
