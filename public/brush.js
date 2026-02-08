@@ -1,7 +1,5 @@
-// Brush class
-
 class Brush {
-    constructor(x, y, brushColor) {
+    constructor(x, y) {
         this.position = createVector(x, y);
         this.prevPosition = this.position.copy();
 
@@ -9,11 +7,7 @@ class Brush {
         this.maxSpeed = 3.5;
         this.friction = 0.92;
 
-        this.baseSize = 28;
-        this.brushColor = brushColor;
-
-        // IMPORTANT: 0 means "no paint"
-        this.brushWeight = 8;
+        this.headSize = 28;
     }
 
     applyInput(inputVec) {
@@ -21,40 +15,41 @@ class Brush {
         if (this.velocity.mag() > this.maxSpeed) this.velocity.setMag(this.maxSpeed);
     }
 
-    updateAndPaint() {
+    update() {
         this.velocity.mult(this.friction);
         if (this.velocity.mag() < 0.02) this.velocity.set(0, 0);
 
         this.prevPosition.set(this.position);
-        this.position.add(this.velocity);
 
-        // keep inside canvas
+        this.position.add(this.velocity);
         this.position.x = constrain(this.position.x, 0, width);
         this.position.y = constrain(this.position.y, 0, height);
 
-        this.paint();
-        this.displayHead();
-    }
-
-    paint() {
-        push();
-        stroke(this.brushColor);
-        strokeWeight(this.brushWeight);
-        strokeCap(ROUND);
-        line(this.prevPosition.x, this.prevPosition.y, this.position.x, this.position.y);
-        pop();
+        // Send stroke only if moved
+        if (this.prevPosition.x !== this.position.x || this.prevPosition.y !== this.position.y) {
+            sendStrokeSegment(this.prevPosition, this.position);
+        }
     }
 
     displayHead() {
         push();
         noStroke();
-
-        // draw a translucent head using the brush color
-        const headCol = color(this.brushColor);
-        headCol.setAlpha(85);
+        const headCol = color(userRGBA[0], userRGBA[1], userRGBA[2], 85);
         fill(headCol);
-
-        circle(this.position.x, this.position.y, this.baseSize);
+        circle(this.position.x, this.position.y, this.headSize);
         pop();
     }
+}
+
+function sendStrokeSegment(p1, p2) {
+    if (!socket || socket.readyState !== 1) return;
+
+    const seg = {
+        x1: p1.x, y1: p1.y,
+        x2: p2.x, y2: p2.y,
+        c: userRGBA,
+        w: brushWeight
+    };
+
+    socket.send(JSON.stringify({ t: "stroke", s: seg }));
 }

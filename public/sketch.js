@@ -1,24 +1,23 @@
 /* 
-Workshop_02: Tilt Painter
+Workshop_02: Tilt Painter (Multiplayer)
 By Andres Serna
-Feb 6 2026
 */
 
 let brush;
 let askButton;
 
-// Device motion
+// Device motion (keep defined so handler won't crash if used)
 let accX = 0, accY = 0, accZ = 0;
 let rrateX = 0, rrateY = 0, rrateZ = 0;
 
 // Device orientation
 let rotateDegrees = 0;
-let frontToBack = 0; // beta
-let leftToRight = 0; // gamma
+let frontToBack = 0;
+let leftToRight = 0;
 
 let hasOrientation = false;
 
-// Calibration offsets
+// Calibration
 let beta0 = 0;
 let gamma0 = 0;
 let isCalibrated = false;
@@ -28,18 +27,35 @@ const DEADZONE_DEG = 3;
 const MAX_TILT_DEG = 30;
 const INPUT_GAIN = 0.12;
 
-// Painting logic
+// Painting
 let startedPainting = false;
-let userColor;
+let userRGBA;     // [r,g,b,a]
+let brushWeight = 8;
+
+// Persistent paint buffer
+let paintLayer;
+
+// Multiplayer
+let socket = null;
+let playersOnline = 1;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   angleMode(DEGREES);
 
-  userColor = color(random(0, 255), random(0, 255), random(0, 255), 255);
+  // offscreen paint layer so strokes persist without background()
+  paintLayer = createGraphics(width, height);
+  paintLayer.background(255);
 
-  // Blank canvas once
-  background(255);
+  // random per user/session color
+  userRGBA = [
+    floor(random(0, 255)),
+    floor(random(0, 255)),
+    floor(random(0, 255)),
+    255
+  ];
+
+  connectSocket();
 
   if (
     typeof DeviceMotionEvent.requestPermission === "function" &&
@@ -49,9 +65,8 @@ function setup() {
     askButton.position(width / 3, 16);
     askButton.style("font-size", "32px");
     askButton.style("padding", "37px 45px");
-    askButton.mousePressed(handlePermissionButtonPressed);
 
-    // iOS sometimes ignores mousePressed for DOM buttons. Force touch binding too:
+    askButton.mousePressed(handlePermissionButtonPressed);
     askButton.touchStarted(() => {
       handlePermissionButtonPressed();
       return false;
@@ -63,23 +78,63 @@ function setup() {
 }
 
 function draw() {
-  // no background() so drawing persists
+  // draw the persistent paint layer
+  image(paintLayer, 0, 0);
 
-  if (brush && startedPainting && hasOrientation) {
-    if (!isCalibrated) calibrateTilt();
+  // Move brush and send strokes (painting itself happens when server echoes back)
+  if (brush && startedPainting) {
+    if (hasOrientation) {
+      if (!isCalibrated) calibrateTilt();
 
-    const input = getTiltInputVector();
-    brush.applyInput(input);
-    brush.updateAndPaint();
+      const input = getTiltInputVector();
+      brush.applyInput(input);
+      brush.update(); // update position; will call sendStrokeSegment internally
+    }
+
+    brush.displayHead(); // show brush even if orientation not active yet
   }
 
   drawHUD();
 }
 
+function connectSocket() {
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  socket = new WebSocket(`${protocol}://${location.host}`);
+
+  socket.addEventListener("message", (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+
+    if (msg.t === "init" && Array.isArray(msg.strokes)) {
+      paintLayer.background(255);
+      for (const s of msg.strokes) drawStrokeToLayer(s);
+    }
+
+    if (msg.t === "stroke" && msg.s) {
+      drawStrokeToLayer(msg.s);
+    }
+
+    if (msg.t === "clear") {
+      paintLayer.background(255);
+    }
+
+    if (msg.t === "players") {
+      playersOnline = msg.n || 1;
+    }
+  });
+}
+
+function drawStrokeToLayer(s) {
+  paintLayer.push();
+  paintLayer.stroke(s.c[0], s.c[1], s.c[2], s.c[3]);
+  paintLayer.strokeWeight(s.w);
+  paintLayer.strokeCap(ROUND);
+  paintLayer.line(s.x1, s.y1, s.x2, s.y2);
+  paintLayer.pop();
+}
+
 function handlePermissionButtonPressed() {
   if (!askButton) return;
-
-  // Prove the handler is firing
   askButton.html("Requesting...");
 
   const motionPromise =
@@ -94,7 +149,6 @@ function handlePermissionButtonPressed() {
 
   Promise.all([motionPromise, orientPromise])
     .then(([motionRes, orientRes]) => {
-      // Show the results on the button so you can’t miss it
       askButton.html(`M:${motionRes} O:${orientRes}`);
 
       if (motionRes === "granted") {
@@ -111,13 +165,13 @@ function handlePermissionButtonPressed() {
     });
 }
 
+// Device motion (not required for tilt painting, but safe)
 function deviceMotionHandler(event) {
   if (event.acceleration) {
     accX = event.acceleration.x ?? 0;
     accY = event.acceleration.y ?? 0;
     accZ = event.acceleration.z ?? 0;
   }
-
   if (event.rotationRate) {
     rrateZ = event.rotationRate.alpha ?? 0;
     rrateX = event.rotationRate.beta ?? 0;
@@ -158,28 +212,35 @@ function applyDeadzone(v, dz) {
   return Math.abs(v) < dz ? 0 : v;
 }
 
+// Tap to start: spawn brush in CENTER (as requested)
 function touchStarted() {
-  if (!brush) {
-    // spawn in center (your request)
-    brush = new Brush(width / 2, height / 2, userColor);
-    startedPainting = true;
-
-    if (hasOrientation) calibrateTilt();
-  } else {
-    if (hasOrientation) calibrateTilt();
-  }
+  startPainting();
   return false;
 }
 
 function mousePressed() {
-  if (!brush) {
-    brush = new Brush(width / 2, height / 2, userColor);
-    startedPainting = true;
+  startPainting();
+}
 
+function startPainting() {
+  if (!brush) {
+    brush = new Brush(width / 2, height / 2);
+    startedPainting = true;
     if (hasOrientation) calibrateTilt();
   } else {
     if (hasOrientation) calibrateTilt();
   }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+
+  // Resizing wipes buffers; rebuild from server history
+  paintLayer = createGraphics(width, height);
+  paintLayer.background(255);
+
+  if (socket && socket.readyState === 1) socket.close();
+  connectSocket();
 }
 
 function drawHUD() {
@@ -192,12 +253,9 @@ function drawHUD() {
   const status = hasOrientation ? "OK" : "Waiting...";
   const cal = isCalibrated ? "Yes" : "No";
   const state = brush ? "Painting" : "Tap to start";
-  text(`State: ${state}`, 22, 20);
-  text(`Orientation: ${status}   Calibrated: ${cal}`, 22, 40);
-  text(`beta: ${frontToBack.toFixed(1)}  gamma: ${leftToRight.toFixed(1)}`, 22, 60);
-  pop();
-}
 
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  text(`State: ${state}`, 22, 20);
+  text(`Players: ${playersOnline}`, 22, 44);
+  text(`Orientation: ${status}  Calib: ${cal}`, 22, 68);
+  pop();
 }
