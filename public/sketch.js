@@ -1,7 +1,13 @@
+/* 
+Workshop_02: Tilt Painter (Multiplayer)
+By Andres Serna
+Feb 6 2026
+*/
+
 let brush;
 let askButton;
 
-// Device motion vars
+// Device motion vars (safe to keep)
 let accX = 0, accY = 0, accZ = 0;
 let rrateX = 0, rrateY = 0, rrateZ = 0;
 
@@ -24,7 +30,7 @@ const INPUT_GAIN = 0.12;
 
 // Painting
 let userRGBA;          // [r,g,b,a]
-let brushWeight = 20;
+let brushWeight = 20;  // thicker default
 
 // Persistent paint buffer
 let paintLayer;
@@ -41,7 +47,7 @@ function setup() {
   angleMode(DEGREES);
 
   paintLayer = createGraphics(width, height);
-  paintLayer.background(0, 75);
+  paintLayer.background(0); // black background like your screenshot
 
   userRGBA = [
     floor(random(0, 255)),
@@ -52,14 +58,22 @@ function setup() {
 
   connectSocket();
 
+  // iOS permission flow
   if (
     typeof DeviceMotionEvent?.requestPermission === "function" &&
     typeof DeviceOrientationEvent?.requestPermission === "function"
   ) {
     askButton = createButton("Enable Motion");
-    askButton.position(width / 3, 16);
-    askButton.style("font-size", "32px");
-    askButton.style("padding", "37px 45px");
+
+    // Style a button
+    askButton.style("font-size", "22px");
+    askButton.style("padding", "18px 22px");
+    askButton.style("background", "#eee");
+    askButton.style("border", "none");
+    askButton.style("border-radius", "12px");
+
+    // place top-right
+    positionButtonTopRight();
 
     askButton.mousePressed(handlePermissionButtonPressed);
     askButton.touchStarted(() => {
@@ -67,11 +81,9 @@ function setup() {
       return false;
     });
   } else {
-    // Non-iOS permission flow
+    // Non-iOS (no permission prompt)
     window.addEventListener("devicemotion", deviceMotionHandler, true);
     window.addEventListener("deviceorientation", deviceTurnedHandler, true);
-
-    // Spawn immediately for non-iOS too
     spawnBrush();
   }
 }
@@ -87,7 +99,7 @@ function draw() {
       const seg = brush.update();
 
       if (seg) {
-        // 1) Draw locally immediately
+        // Draw locally instantly (no lag)
         const fullSeg = {
           ...seg,
           c: userRGBA,
@@ -96,12 +108,11 @@ function draw() {
         };
         drawStrokeToLayer(fullSeg);
 
-        // 2) Send to server for everyone else (RAM history + broadcast)
+        // Send to server for others + history
         sendStroke(fullSeg);
       }
     }
 
-    // Always show head
     brush.displayHead();
   }
 
@@ -117,11 +128,10 @@ function connectSocket() {
     try { msg = JSON.parse(ev.data); } catch { return; }
 
     if (msg.t === "init" && Array.isArray(msg.strokes)) {
-      // Rebuild history (refresh-safe while server is awake)
-      paintLayer.background(0, 75);
+      // rebuild from server history (while server is awake)
+      paintLayer.background(0);
       for (const s of msg.strokes) {
-        // Skip strokes we already drew locally this session
-        if (s.id && s.id === clientId) continue;
+        if (s.id && s.id === clientId) continue; // skip our own history
         drawStrokeToLayer(s);
       }
     }
@@ -133,7 +143,7 @@ function connectSocket() {
     }
 
     if (msg.t === "clear") {
-      paintLayer.background(0, 75);
+      paintLayer.background(0);
     }
 
     if (msg.t === "players") {
@@ -142,8 +152,8 @@ function connectSocket() {
   });
 
   socket.addEventListener("close", () => {
-    // Basic auto-reconnect (keeps it robust on Render/mobile)
-    setTimeout(connectSocket, 1000);
+    // auto reconnect
+    setTimeout(connectSocket, 800);
   });
 }
 
@@ -163,6 +173,7 @@ function drawStrokeToLayer(s) {
 
 function handlePermissionButtonPressed() {
   if (!askButton) return;
+
   askButton.html("Requesting...");
 
   const motionPromise =
@@ -177,22 +188,22 @@ function handlePermissionButtonPressed() {
 
   Promise.all([motionPromise, orientPromise])
     .then(([motionRes, orientRes]) => {
-      askButton.html(`M:${motionRes} O:${orientRes}`);
-
       if (motionRes === "granted") {
         window.addEventListener("devicemotion", deviceMotionHandler, true);
       }
       if (orientRes === "granted") {
         window.addEventListener("deviceorientation", deviceTurnedHandler, true);
-      }
 
-      // Spawn brush as soon as permission is granted (your request)
-      if (orientRes === "granted") {
+        // Your requested behavior:
+        askButton.html("Motion On");
+        askButton.attribute("disabled", "");
         spawnBrush();
+      } else {
+        askButton.html("Enable Motion");
       }
     })
     .catch((err) => {
-      askButton.html("Permission failed");
+      askButton.html("Enable Motion");
       console.error(err);
       alert("Permission error: " + (err?.message || err));
     });
@@ -201,7 +212,7 @@ function handlePermissionButtonPressed() {
 function spawnBrush() {
   if (brush) return;
   brush = new Brush(width / 2, height / 2);
-  isCalibrated = false; // will auto-calibrate on first orientation read
+  isCalibrated = false;
 }
 
 function deviceMotionHandler(event) {
@@ -251,34 +262,41 @@ function applyDeadzone(v, dz) {
 }
 
 function drawHUD() {
+  // Only 2 lines, left aligned
   push();
-  noStroke();
   fill(255);
-  textSize(24);
+  noStroke();
+  textSize(28);
   textAlign(LEFT, TOP);
 
-  const status = hasOrientation ? "OK" : "Waiting...";
-  const cal = isCalibrated ? "Yes" : "No";
-  const state = brush ? "Painting" : "Waiting permission";
-
+  const state = brush ? "Painting" : "Waiting";
   text(`State: ${state}`, 22, 20);
-  text(`Players: ${playersOnline}`, 22, 44);
-  text(`Orientation: ${status}  Calib: ${cal}`, 22, 68);
+  text(`Painters: ${playersOnline}`, 22, 60);
   pop();
+
+  // keep button pinned top-right
+  positionButtonTopRight();
+}
+
+function positionButtonTopRight() {
+  if (!askButton) return;
+  const w = askButton.size().width || 200;
+  askButton.position(width - w - 22, 16);
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 
-  // Resizing wipes buffers, rebuild from server history
+  // recreate layer and rely on server init to refill it
   paintLayer = createGraphics(width, height);
-  paintLayer.background(0, 75);
+  paintLayer.background(0);
 
-  // Keep brush centered on resize (optional nice behavior)
+  // keep brush centered if it exists
   if (brush) {
     brush.position.set(width / 2, height / 2);
     brush.prevPosition.set(brush.position);
   }
 
-  if (socket && socket.readyState === 1) socket.close();
+  // reposition button
+  positionButtonTopRight();
 }
