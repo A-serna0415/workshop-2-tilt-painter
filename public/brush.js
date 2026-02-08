@@ -4,8 +4,8 @@ class Brush {
         this.prevPosition = this.position.copy();
 
         this.velocity = createVector(0, 0);
-        this.maxSpeed = 3.5;
-        this.friction = 0.92;
+        this.maxSpeed = 4.2;
+        this.friction = 0.95;
 
         this.headSize = 28;
     }

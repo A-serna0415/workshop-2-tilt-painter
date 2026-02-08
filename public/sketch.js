@@ -1,7 +1,7 @@
 let brush;
 let askButton;
 
-// Device motion vars (defined so handler won’t crash)
+// Device motion vars
 let accX = 0, accY = 0, accZ = 0;
 let rrateX = 0, rrateY = 0, rrateZ = 0;
 
@@ -87,7 +87,7 @@ function draw() {
       const seg = brush.update();
 
       if (seg) {
-        // 1) Draw locally immediately (fixes lag + “trace stops” feel)
+        // 1) Draw locally immediately
         const fullSeg = {
           ...seg,
           c: userRGBA,
@@ -118,7 +118,7 @@ function connectSocket() {
 
     if (msg.t === "init" && Array.isArray(msg.strokes)) {
       // Rebuild history (refresh-safe while server is awake)
-      paintLayer.background(255);
+      paintLayer.background(0, 75);
       for (const s of msg.strokes) {
         // Skip strokes we already drew locally this session
         if (s.id && s.id === clientId) continue;
