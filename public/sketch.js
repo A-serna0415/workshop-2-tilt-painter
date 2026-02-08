@@ -24,7 +24,7 @@ const INPUT_GAIN = 0.12;
 
 // Painting
 let userRGBA;          // [r,g,b,a]
-let brushWeight = 8;
+let brushWeight = 20;
 
 // Persistent paint buffer
 let paintLayer;
@@ -253,7 +253,7 @@ function applyDeadzone(v, dz) {
 function drawHUD() {
   push();
   noStroke();
-  fill(0);
+  fill(255);
   textSize(24);
   textAlign(LEFT, TOP);
 
