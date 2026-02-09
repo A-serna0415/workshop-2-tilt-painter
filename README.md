@@ -12,8 +12,9 @@ https://github.com/user-attachments/assets/e49733fc-09a1-4d31-bd77-e76e3ddc4cd1
 *Android/iOS mobile.*
 
 ### How to run
-- Pressed the "Enable Button" on screen and allow the web app to use the device movement.
+- Press the "Enable Button" on screen and allow the web app to use the device movement.
 - The brush will appear on the centre of the canvas.
+- The color of the brush may be random for each user.
 - Tilt the phone smoothly so you can control the trace.
 - Tap the screen to re-calibrate the device movement data.
 
