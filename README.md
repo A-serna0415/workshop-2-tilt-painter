@@ -5,6 +5,9 @@
 
 *The idea is simple, to turn small personal gestures into a collective drawing, where motion becomes a shared, temporary language.*
 
+### Demo
+https://github.com/user-attachments/assets/e49733fc-09a1-4d31-bd77-e76e3ddc4cd1
+
 ### Requirements
 *Android/iOS mobile.*
 
