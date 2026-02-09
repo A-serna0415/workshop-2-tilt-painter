@@ -9,11 +9,12 @@
 *Android/iOS mobile.*
 
 ### How to run
-*Pressed the "Enable Button" on screen and allow the web app to use the device movement.*
-*The brush will appear on the centre of the canvas.*
-*Tilt the phone smoothly so you can control the trace.*
-*Tap the screen to re-calibrate the device movement data.*
+- Pressed the "Enable Button" on screen and allow the web app to use the device movement.
+- The brush will appear on the centre of the canvas.
+- Tilt the phone smoothly so you can control the trace.
+- Tap the screen to re-calibrate the device movement data.
 
 ### Links
 *GitHub repo: https://github.com/A-serna0415/workshop-2-tilt-painter.git*
+
 *Hosted in render: https://tilt-painter.onrender.com*
