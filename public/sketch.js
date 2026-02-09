@@ -1,13 +1,13 @@
 /* 
-Workshop_02: Tilt Painter (Multiplayer)
+Workshop_02: Tilt Painter
 By Andres Serna
-Feb 6 2026
+Feb 7 2026
 */
 
 let brush;
 let askButton;
 
-// Device motion vars (safe to keep)
+// Device motion
 let accX = 0, accY = 0, accZ = 0;
 let rrateX = 0, rrateY = 0, rrateZ = 0;
 
@@ -29,8 +29,8 @@ const MAX_TILT_DEG = 30;
 const INPUT_GAIN = 0.12;
 
 // Painting
-let userRGBA;          // [r,g,b,a]
-let brushWeight = 20;  // thicker default
+let userRGBA;          // [r,g,b,a] colors for the users
+let brushWeight = 20;  // brush thickness
 
 // Persistent paint buffer
 let paintLayer;
@@ -47,7 +47,7 @@ function setup() {
   angleMode(DEGREES);
 
   paintLayer = createGraphics(width, height);
-  paintLayer.background(0); // black background like your screenshot
+  paintLayer.background(0);
 
   userRGBA = [
     floor(random(0, 255)),
@@ -58,7 +58,7 @@ function setup() {
 
   connectSocket();
 
-  // iOS permission flow
+  // iOS permissions
   if (
     typeof DeviceMotionEvent?.requestPermission === "function" &&
     typeof DeviceOrientationEvent?.requestPermission === "function"
@@ -81,7 +81,7 @@ function setup() {
       return false;
     });
   } else {
-    // Non-iOS (no permission prompt)
+    // Non-iOS
     window.addEventListener("devicemotion", deviceMotionHandler, true);
     window.addEventListener("deviceorientation", deviceTurnedHandler, true);
     spawnBrush();
@@ -99,7 +99,7 @@ function draw() {
       const seg = brush.update();
 
       if (seg) {
-        // Draw locally instantly (no lag)
+        // Draw locally instantly
         const fullSeg = {
           ...seg,
           c: userRGBA,
@@ -108,7 +108,7 @@ function draw() {
         };
         drawStrokeToLayer(fullSeg);
 
-        // Send to server for others + history
+        // Send to server for others
         sendStroke(fullSeg);
       }
     }
@@ -153,7 +153,7 @@ function connectSocket() {
 
   socket.addEventListener("close", () => {
     // auto reconnect
-    setTimeout(connectSocket, 800);
+    setTimeout(connectSocket, 1000);
   });
 }
 
@@ -194,7 +194,6 @@ function handlePermissionButtonPressed() {
       if (orientRes === "granted") {
         window.addEventListener("deviceorientation", deviceTurnedHandler, true);
 
-        // Your requested behavior:
         askButton.html("Motion On");
         askButton.attribute("disabled", "");
         spawnBrush();
@@ -262,7 +261,6 @@ function applyDeadzone(v, dz) {
 }
 
 function drawHUD() {
-  // Only 2 lines, left aligned
   push();
   fill(255);
   noStroke();
@@ -274,7 +272,6 @@ function drawHUD() {
   text(`Painters: ${playersOnline}`, 22, 60);
   pop();
 
-  // keep button pinned top-right
   positionButtonTopRight();
 }
 
